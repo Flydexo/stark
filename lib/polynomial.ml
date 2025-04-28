@@ -147,4 +147,11 @@ let rec feuilles t acc = match t with
 
 (* Hassoul ça marche *)
 
-let rec codageArbre alpha a = feuilles (arbreRestes a (arbreSousProduits alpha)) []
+let rec codageArbre alpha a = feuilles (arbreRestes a (arbreSousProduits alpha)) [] 
+
+let lagrange alphas alpha_i = List.fold_left (fun prod alpha -> 
+  if alpha <> alpha_i then 
+    produit_rapide prod (produit_scalaire [Field.neg alpha;Field.one] (Field.inv (Field.(-) alpha_i alpha)))
+  else prod) [Field.one] alphas
+
+let lagrange_interpolation p alphas = List.fold_left (fun sum alpha -> addition sum (produit_scalaire (lagrange alphas alpha) (valeur p alpha)))
