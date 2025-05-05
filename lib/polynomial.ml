@@ -147,7 +147,7 @@ let rec feuilles t acc = match t with
 
 (* Hassoul ça marche *)
 
-let rec codageArbre alpha a = feuilles (arbreRestes a (arbreSousProduits alpha)) [] 
+let codageArbre alpha a = feuilles (arbreRestes a (arbreSousProduits alpha)) [] 
 
 let lagrange alphas alpha_i = List.fold_left (fun prod alpha -> 
   if alpha <> alpha_i then 

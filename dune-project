@@ -1,19 +1,18 @@
 (lang dune 3.17)
+(cram enable)
 
 (name cairo_ml)
 
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github flydexo/stark))
 
-(authors "Author Name <author@example.com>")
+(authors "Flydexo <flydexo@gmail.com>")
 
-(maintainers "Maintainer Name <maintainer@example.com>")
+(maintainers "Flydexo <flydexo@gmail.com>")
 
-(license LICENSE)
-
-(documentation https://url/to/documentation)
+(license MIT)
 
 (package
  (name cairo_ml)
@@ -21,8 +20,9 @@
  (description "A longer description")
  (depends 
   ocaml
-  zarith)
+  zarith
+  (sha (= 1.14)))
  (tags
-  ("add topics" "to describe" your project)))
+  (crypto zk stark)))
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/reference/dune-project/index.html
