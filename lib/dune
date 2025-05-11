@@ -1,4 +1,4 @@
 (library
  (name cairo_ml)
- (modules polynomial field merkle)
+ (modules polynomial field merkle channel)
  (libraries zarith sha))
