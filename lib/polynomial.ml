@@ -26,7 +26,10 @@ in List.fold_left (fun a u -> addition u a) [] (aux u v)
 let print_poly p = 
   let rec aux p i = match p with
   | [] -> ();
-  | x::t -> Printf.printf "%ax^%d + " Z.output x i; aux t (i+1)
+  | x::t -> 
+    if not (x = Z.zero) then
+      Printf.printf "%ax^%d + " Z.output x i;
+    aux t (i+1)
 in aux p 0; Printf.printf "\n"
 
 let deg p =
@@ -74,8 +77,6 @@ let normalize u v =
 
 let produit_rapide uu vv = 
  let (u',v') = normalize uu vv in
- print_poly u';
- print_poly v';
  let rec aux u v = function
   | 0 -> []
   | 1 -> [Field.( * ) (List.hd u) (List.hd v)]
@@ -149,9 +150,94 @@ let rec feuilles t acc = match t with
 
 let codageArbre alpha a = feuilles (arbreRestes a (arbreSousProduits alpha)) [] 
 
-let lagrange alphas alpha_i = List.fold_left (fun prod alpha -> 
+let lagrange alphas alpha_i = 
+  Printf.printf "lagrange\n";
+  List.fold_left (fun prod alpha -> 
   if alpha <> alpha_i then 
     produit_rapide prod (produit_scalaire [Field.neg alpha;Field.one] (Field.inv (Field.(-) alpha_i alpha)))
   else prod) [Field.one] alphas
 
-let lagrange_interpolation p alphas = List.fold_left (fun sum alpha -> addition sum (produit_scalaire (lagrange alphas alpha) (valeur p alpha)))
+let lagrange_interpolation p alphas = List.fold_left (fun sum alpha -> addition sum (produit_scalaire (lagrange alphas alpha) (valeur p alpha))) [] alphas
+
+let lagrange_interpolation_eval alphas evals = List.fold_left2 (fun sum alpha eval -> addition sum (produit_scalaire (lagrange alphas alpha) eval)) [] alphas evals
+
+let horner_eval poly x0 = 
+  let r_poly = List.rev poly in
+  let rec aux a_n = function
+    | h::t -> aux (Field.(+) h (Field.( * ) a_n x0)) t
+    | [] -> a_n
+  in aux (List.hd r_poly) (List.tl r_poly)
+
+let rec split = function
+  | [] -> [],[]
+  | e::[] -> [e],[]
+  | e::o::t -> 
+    let even, odd = split t in
+    e::even, o::odd
+
+let print_arr a =
+  for i = 0 to (Array.length a  - 1) do
+    Printf.printf "%d: " i;
+    Z.print a.(i);
+    Printf.printf "\n";
+  done;
+  Printf.printf "\n\n"
+
+let rec fft poly = 
+  let d = deg poly +1 in
+  if d = 1 then begin
+    [|List.hd poly|]
+  end else begin
+    assert (Float.is_integer (log(float_of_int (d))/.log(2.)));
+    let order = Z.of_int (d) in
+    let w = Field.( ** ) Field.generator (Field.(/) Field.order order) in
+    Printf.printf "W = ";
+    Z.print w;
+    Printf.printf "\n";
+    assert (Z.equal (Field.( ** ) w order) Z.one);
+    let w_squared = Field.( ** ) w (Z.of_int 2) in
+    let x = Array.make ((d)/2) Field.zero in
+    x.(0) <- w_squared;
+    for i = 1 to (d/2-1) do
+      x.(i) <- (Field.( * ) x.(i-1) w_squared);
+    done;
+    let y = Array.make d Z.zero in
+    let even, odd = split poly in
+    let e_y = fft even in
+    let o_y = fft odd in
+    for i = 0 to d/2-1 do
+      y.(i) <- Field.(+) e_y.(i) (Field.( * ) x.(i) o_y.(i));
+      y.(i + d/2) <- Field.(-) e_y.(i) (Field.( * ) x.(i) o_y.(i)); 
+    done;
+    print_arr x;
+    y
+  end
+
+let rec ifft y =
+  let l = Array.length y in
+  if l = 1 then
+    y
+  else 
+    let o_y = Array.make (l/2) Z.zero in
+    let e_y = Array.make (l/2) Z.zero in
+    let w = Field.( ** ) Field.generator (Field.(/) Field.order (Z.of_int l)) in 
+    Printf.printf "W = ";
+    Z.print w;
+    Printf.printf "\n";
+    let x = Array.make (l/2) Z.zero in
+    for i = 0 to (l/2-1) do
+      e_y.(i) <- Field.(/) (Field.(+) y.(i) y.(i+l/2)) (Z.of_int 2);
+      o_y.(i) <- Field.(/) (Field.(-) y.(i) y.(i+l/2)) (Field.( * ) (Field.( ** ) w (Z.of_int i)) (Z.of_int 2));
+      x.(i) <- (Field.( ** ) w (Z.of_int i)); 
+    done;
+    print_arr x;
+    let o = ifft o_y in
+    let e = ifft e_y in
+    let a = Array.make l Z.zero in
+    for i = 0 to (l/2-1) do
+      a.(2*i) <- e.(i);
+      a.(2*i+1) <- o.(i);
+    done;
+    a
+
+    
