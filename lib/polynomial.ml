@@ -185,9 +185,12 @@ let print_arr a =
 
 let rec fft poly = 
   let d = deg poly +1 in
-  if d = 1 then begin
+  if d = 0 then begin
+    [|Field.zero|]
+  end else if d = 1 then begin
     [|List.hd poly|]
   end else begin
+    Printf.printf "%f\n" (log(float_of_int (d))/.log(2.)); 
     assert (Float.is_integer (log(float_of_int (d))/.log(2.)));
     let order = Z.of_int (d) in
     let w = Field.( ** ) Field.generator (Field.(/) Field.order order) in
@@ -195,14 +198,15 @@ let rec fft poly =
     Z.print w;
     Printf.printf "\n";
     assert (Z.equal (Field.( ** ) w order) Z.one);
-    let w_squared = Field.( ** ) w (Z.of_int 2) in
     let x = Array.make ((d)/2) Field.zero in
-    x.(0) <- w_squared;
+    x.(0) <- w;
     for i = 1 to (d/2-1) do
-      x.(i) <- (Field.( * ) x.(i-1) w_squared);
+      x.(i) <- (Field.( * ) x.(i-1) w);
     done;
     let y = Array.make d Z.zero in
     let even, odd = split poly in
+    Printf.printf "e len: %d\n" (List.length even);
+    Printf.printf "o len: %d\n" (List.length odd);
     let e_y = fft even in
     let o_y = fft odd in
     for i = 0 to d/2-1 do
@@ -227,12 +231,21 @@ let rec ifft y =
     let x = Array.make (l/2) Z.zero in
     for i = 0 to (l/2-1) do
       e_y.(i) <- Field.(/) (Field.(+) y.(i) y.(i+l/2)) (Z.of_int 2);
-      o_y.(i) <- Field.(/) (Field.(-) y.(i) y.(i+l/2)) (Field.( * ) (Field.( ** ) w (Z.of_int i)) (Z.of_int 2));
-      x.(i) <- (Field.( ** ) w (Z.of_int i)); 
+      o_y.(i) <- Field.(/) (Field.(-) y.(i) y.(i+l/2)) (Field.( * ) (Field.( ** ) w (Z.of_int (i+1))) (Z.of_int 2));
+      x.(i) <- (Field.( ** ) w (Z.of_int (i+1))); 
     done;
+    Printf.printf "x\n";
     print_arr x;
+    Printf.printf "e\n";
+    print_arr e_y;
+    Printf.printf "o\n";
+    print_arr o_y;
     let o = ifft o_y in
     let e = ifft e_y in
+    Printf.printf "Odd: \n";
+    print_arr o;
+    Printf.printf "Even: \n";
+    print_arr e;
     let a = Array.make l Z.zero in
     for i = 0 to (l/2-1) do
       a.(2*i) <- e.(i);

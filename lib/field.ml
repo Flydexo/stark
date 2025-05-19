@@ -8,6 +8,6 @@ let (+) x y = Z.(mod) (Z.add x y) modulus;;
 let neg x = Z.(-) modulus x;;
 let (-) x y = (+) x (neg y);;
 let ( * ) x y = Z.(mod) (Z.mul x y) modulus;;
-let (/) x y = Z.(mod) (Z.divexact x y) modulus;;
 let ( ** ) x n = Z.powm x n modulus;;
 let inv x = Z.invert x modulus;;
+let (/) x y = (( * ) x (inv y));;
