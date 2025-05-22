@@ -1,5 +1,9 @@
 type poly = Field.t list;;
 
+let ln_bar ~total =
+  let open Progress.Line in
+  list [ spinner (); bar total; count_to total ]
+
 let rec add a b = match (a,b) with
   | [], [] -> []
   | [], b::bt -> b::(add [] bt)
@@ -20,14 +24,16 @@ let eval poly x0 =
   let rec aux a_n = function
     | h::t -> aux (Field.(+) h (Field.( * ) a_n x0)) t
     | [] -> a_n
-  in aux (List.hd r_poly) (List.tl r_poly)
+  in match r_poly with
+  | [] -> Field.zero
+  | h::t -> aux h t
 
-let rec split = function
-  | [] -> [],[]
-  | e::[] -> [e],[]
-  | e::o::t -> 
-    let even, odd = split t in
-    e::even, o::odd
+let split poly = 
+  let rec aux poly even odd x = match poly with
+    | [] -> List.rev even, List.rev odd
+    | h::t when x mod 2 = 0 -> aux t (h::even) odd (x+1)
+    | h::t -> aux t (even) (h::odd) (x+1)
+  in aux poly [] [] 0
 
 let print_arr a =
   for i = 0 to (Array.length a  - 1) do
@@ -43,7 +49,6 @@ let next_pow2 d = Float.to_int (2. ** Float.ceil (log(float_of_int(d))/.log(2.))
 
 let fft poly n = 
   let rec _fft poly d = 
-    Printf.printf "Poly length: %d\n" (List.length poly);
     if d = 0 then begin
       [|Field.zero|]
     end else if d = 1 then begin
@@ -103,14 +108,6 @@ let real_deg p =
   | _::p -> (aux p (nz+z+1) 0 )
   in aux p 0 0
 
-let zeropad a b =
-  let da, db = real_deg a, real_deg b in
-  let m = da + db in
-  let l = Float.to_int (2. ** Float.ceil (log(float_of_int(m))/.log(2.))) in
-  let ap = List.init (l -  da) (fun _ -> Field.zero) in
-  let bp = List.init (l - db) (fun _ -> Field.zero) in
-  a@ap, b@bp
-
 let format_fft a b = 
   let da, db = real_deg a, real_deg b in
   let m = da + db in
@@ -122,7 +119,6 @@ let prod a b =
   let e_a = fft a d in
   let e_b = fft b d in
   let e_y = Array.map2 (fun a b -> Field.( * ) a b) e_a e_b in
-  Printf.printf "\n\nProd!!\n\n";
   Array.to_list (ifft e_y)
 
 let random_poly (n : int) (max_coeff : Z.t) : poly =
@@ -132,12 +128,12 @@ let random_poly (n : int) (max_coeff : Z.t) : poly =
   in
   aux [] n
 
-(* let produit u v = 
+let naive_prod u v = 
   let rec aux a b = match a with 
   | [] -> []
-  | a::at -> (produit_scalaire b a)::(aux at (Field.zero::b))
-in List.fold_left (fun a u -> addition u a) [] (aux u v)
- *)
+  | a::at -> (dot_prod b a)::(aux at (Field.zero::b))
+in List.fold_left (fun a u -> add u a) [] (aux u v)
+
 let print_poly p = 
   let rec aux p i = match p with
   | [] -> ();
@@ -160,62 +156,18 @@ let division a b =
 
 let modulo u v = sub u (prod (division u v) v)
 
-let rec decoupe u n =
-  if n=0 then ([],u,List.hd u)
-  else if n = 1 then ([List.hd u], List.tl u, List.hd u)
-  else 
-    let (ub,uh,lu)=decoupe (List.tl u) (n-1) in
-    (((List.hd u)::ub),uh,lu) ;;
-
-let rec decale p e =
-  if e=0 then p
-  else Field.zero::(decale p (e-1)) ;;
-
-let rec ecrete p n =
-    if n=0 then []
-    else (List.hd p)::(ecrete (List.tl p) (n-1)) ;;
-
-let ajoute vb n =
-  if n<>0 then List.rev (decale (List.rev vb) n) else vb;;
-
-type arbre = Vide
-| Noeud of poly * arbre * arbre
-
-let polynom_from_root r = [Field.neg r;Field.one]
-
-let arbreSousProduits roots = 
-  let rec aux roots l =
-    if l = 1 then
-      Noeud(polynom_from_root (List.hd roots),Vide,Vide)
+let multiple_prod polynomials = 
+  let rec aux b len f = 
+    if len = 0 then f []
+    else if len= 1 then f polynomials.(b)
     else 
-      let ub,uh,_ = decoupe roots (l/2) in
-      let g = aux ub (l/2) in
-      let d = aux uh (l - l/2) in
-      match (g,d) with
-      | Noeud(gp,_,_), Noeud(dp,_,_) -> Noeud((prod gp dp),g,d);
-      | _ -> failwith "Should not happend"
-  in aux roots (List.length roots)
-
-let rec arbreRestes a = function
-| Vide -> Vide
-| Noeud(m,g,d) -> Noeud(modulo a m, arbreRestes a g, arbreRestes a d)
-
-let rec feuilles t acc = match t with
-| Vide -> []
-| Noeud(p, Vide, Vide) -> (Field.neg (List.hd p))::acc
-| Noeud(_, t1, t2) -> feuilles t1 (feuilles t2 acc) 
-
-let codageArbre alpha a = feuilles (arbreRestes a (arbreSousProduits alpha)) [] 
-
-let lagrange alphas alpha_i = 
-  List.fold_left (fun p alpha -> 
-  if alpha <> alpha_i then 
-    prod p (dot_prod [Field.neg alpha;Field.one] (Field.inv (Field.(-) alpha_i alpha)))
-  else p) [Field.one] alphas
-
-let lagrange_interpolation p alphas = List.fold_left (fun sum alpha -> add sum (dot_prod (lagrange alphas alpha) (eval p alpha))) [Field.zero] alphas
-
-let lagrange_interpolation_eval alphas evals = List.fold_left2 (fun sum alpha eval -> add sum (dot_prod (lagrange alphas alpha) eval)) [] alphas evals
+      let mid = len/2 in
+      aux b mid (fun left ->
+        aux (b+mid) (len-mid) (fun right ->
+          f (prod left right)
+        )  
+      )
+  in aux 0 (Array.length polynomials) (fun x -> x)
 
 let produit u v = 
   let rec aux a b = match a with 
@@ -223,21 +175,57 @@ let produit u v =
   | a::at -> (dot_prod b a)::(aux at (Field.zero::b))
 in List.fold_left (fun a u -> add u a) [] (aux u v)
 
+let multiple_add polynomials = 
+  let rec aux b len f = 
+    if len = 0 then f []
+    else if len= 1 then f polynomials.(b)
+    else 
+      let mid = len/2 in
+      aux b mid (fun left ->
+        aux (b+mid) (len-mid) (fun right ->
+          f (add left right)
+        )  
+      )
+  in aux 0 (Array.length polynomials) (fun x -> x)
 
-let l_i alphas i =
-  let p = ref [Field.one] in
-  for j = 0 to (Array.length alphas -1) do
-    Printf.printf "l_i %d\n" j;
-    if j <> i then
-      p := prod (!p) (dot_prod ([Field.neg (alphas.(j));Field.one]) (Field.inv (Field.(-) alphas.(i) alphas.(j))));
-    print_poly !p;
-  done;
-  !p
+let divide_by_linear poly alpha =
+  let reversed_poly = List.rev poly in
+  let rec horner acc = function
+    | [] -> ( 
+        let quotient_with_remainder = List.rev acc in
+        match quotient_with_remainder with
+        | [] -> ([], Field.zero)  
+        | [remainder] -> ([], remainder)  
+        | _ -> 
+            let quotient = List.tl quotient_with_remainder in
+            (List.rev quotient, List.hd quotient_with_remainder)
+      )
+    | h::t -> 
+        let new_head = Field.(+) h (Field.( * ) alpha (List.hd acc)) in
+        horner (new_head :: acc) t 
+  in
+  match reversed_poly with
+  | [] -> []  
+  | h::t -> 
+      let (quotient, _) = horner [h] t in
+      List.tl quotient
 
-let lg alphas evals = 
-  let s = ref [Field.zero] in
-  for i = 0 to (Array.length alphas - 1) do
-    Printf.printf "%d\n" i;
-    s := add (!s) (dot_prod (l_i alphas i) evals.(i));
-  done;
-  !s
+let lagrange_numerator alphas = multiple_prod (Array.map (fun alpha -> [Field.neg (alpha);Field.one]) alphas)
+
+let lagrange_polynomial alphas i n =
+  let d = (Array.fold_left (fun p x -> if x = alphas.(i) then p else (Field.( * ) p (Field.(-) alphas.(i) x))) Field.one alphas) in
+  let l = dot_prod (divide_by_linear n alphas.(i)) (Field.inv d) in
+  l
+
+let lagrange_interpolation x y = 
+  let numerator = lagrange_numerator x in
+  let len = Array.length x in
+  let lagrange_polynomials = Array.make len [] in 
+  Progress.with_reporter (ln_bar ~total:len) (fun f ->
+    for i = 0 to (len-1) do
+      lagrange_polynomials.(i) <- (lagrange_polynomial x i numerator);
+      f 1;
+    done;
+  );
+  let s = multiple_add (Array.map2 (fun lagrange e -> dot_prod lagrange e) lagrange_polynomials y) in
+  s

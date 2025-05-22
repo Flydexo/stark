@@ -21,6 +21,7 @@
  (depends 
   ocaml
   zarith
+  progress
   (sha (= 1.14)))
  (tags
   (crypto zk stark)))
